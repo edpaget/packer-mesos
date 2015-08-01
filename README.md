@@ -2,7 +2,14 @@
 
 Packer (http://packer.io) is an open source tool for creating machine images.
 
-We use Packer to create Amazon Machine Images (AMIs) from which our EC2 instances will be launched.
+We use Packer to create VirtualBox images and Amazon Machine Images (AMIs), which are then distributed as Vagrant Boxes on [Vagrant Cloud](https://atlas.hashicorp.com/edpaget/boxes/mesos).
+
+This has been modified from the [original](https://github.com/mbabineau/cloudformation-mesos) to
+
++ use apt for managing the installed version of Mesos and Docker
++ use upstart instead of runit to manage Mesos and Docker daemons
++ remove Logstash dependencies 
++ produce Vagrant boxes using [Atlas](https://atlas.hashicorp.com).
 
 ### Installation
 
@@ -10,7 +17,7 @@ Instructions here: http://www.packer.io/docs/installation.html
 
 ### Usage
 
-To build an AMI, make sure your keys are set:
+To build an AMI or VirtualBox image, make sure your keys are set or you've configured the [AWS Command Line Tools](http://aws.amazon.com/cli/):
 ```
 $ export AWS_ACCESS_KEY_ID="<your_access_key>"
 $ export AWS_SECRET_ACCESS_KEY="<your_secret_key>"
@@ -20,6 +27,10 @@ Then, run `packer build <template>`:
 ```
 $ packer build -var ami_prefix=<mycompany> ubuntu-14.04-mesos.json
 ```
+
+To only build the VirtualBox image:
+```
+$ packer build --
 
 Build times are typically 5-15 minutes plus another 10-20 minutes to replicate to other regions. You should see streamed output like this:
 ```
@@ -61,3 +72,12 @@ us-east-1: ami-0a878262
 us-west-1: ami-494eac0d
 us-west-2: ami-734a7f43
 ```
+
+### Credit
+
+This is almost entirely based on Mike Babineau's [cloudformation-mesos](https://github.com/mbabineau/cloudformation-mesos) and used Nathan Sullivan's [packer ubuntu](https://github.com/CpuID/packer-ubuntu-virtualbox) to get up and running with the VirtualBox builds.
+
+
+### License
+
+Available under an MIT-style License see [LICENSE](https://github.com/edpaget/packer-mesos/tree/master/LICENSE) for details

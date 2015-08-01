@@ -30,7 +30,13 @@ $ packer build -var ami_prefix=<mycompany> ubuntu-14.04-mesos.json
 
 To only build the VirtualBox image:
 ```
-$ packer build --
+$ packer build --only=virtualbox-iso ubuntu-14.04-mesos.json
+```
+
+To only build the AMI:
+```
+$ packer build --only=amazon-ebs ubuntu-14.04-mesos.json
+```
 
 Build times are typically 5-15 minutes plus another 10-20 minutes to replicate to other regions. You should see streamed output like this:
 ```

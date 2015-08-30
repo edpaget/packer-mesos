@@ -1,0 +1,256 @@
+{
+    "variables": {
+        "docker_version": "1.6.0",
+        "mesos_version": "0.22.1",
+        "marathon_version": "0.8.1",
+        "chronos_version": "2.3.3",
+        "cfn_tools_url": "https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz",
+        "ami_prefix": "{{env `ATLAS_USERNAME`}}",
+        "atlas_username": "{{env `ATLAS_USERNAME`}}",
+        "atlas_name": "{{env `ATLAS_NAME`}}"
+    },
+
+    "builders": [
+        {
+            "type": "amazon-ebs",
+            "region": "us-east-1",
+            "source_ami": "ami-d05e75b8",
+            "instance_type": "m3.medium",
+            "ssh_username": "ubuntu",
+            "ami_name": "{{user `ami_prefix`}}-mesos-{{user `mesos_version`}}-hvm-{{isotime | clean_ami_name}}",
+            "ami_description": "Ubuntu 14.04 LTS with Docker and Mesos",
+            "ami_regions": ["us-east-1"],
+            "ami_groups": "all",
+            "tags": {
+                "os:distribution": "Ubuntu",
+                "os:release": "14.04 LTS",
+                "mesos:version": "{{user `mesos_version`}}",
+                "marathon:version": "{{user `marathon_version`}}",
+                "chronos:version": "{{user `chronos_version`}}"
+            }
+        },
+        {
+            "boot_command": [
+                "<esc><esc><enter><wait>",
+                "/install/vmlinuz noapic preseed/url=http://{{ .HTTPIP }}:{{ .HTTPPort }}/preseed.cfg <wait>",
+                "debian-installer=en_US auto locale=en_US kbd-chooser/method=us <wait>",
+                "hostname={{ .Name }} <wait>",
+                "fb=false debconf/frontend=noninteractive <wait>",
+                "keyboard-configuration/modelcode=SKIP keyboard-configuration/layout=USA keyboard-configuration/variant=USA console-setup/ask_detect=false <wait>",
+                "initrd=/install/initrd.gz -- <enter><wait>"
+            ],
+            "boot_wait": "4s",
+            "guest_additions_path": "VBoxGuestAdditions_{{.Version}}.iso",
+            "guest_os_type": "Ubuntu_64",
+            "headless": false, "http_directory": "http",
+            "iso_checksum": "3bfa6eac84d527380d0cc52db9092cde127f161e",
+            "iso_checksum_type": "sha1",
+            "iso_url": "http://releases.ubuntu.com/14.04/ubuntu-14.04.2-server-amd64.iso",
+            "shutdown_command": "echo 'shutdown -P now' > shutdown.sh; echo 'vagrant'|sudo -S sh 'shutdown.sh'",
+            "ssh_password": "vagrant",
+            "ssh_port": 22,
+            "ssh_username": "vagrant",
+            "ssh_wait_timeout": "10000s",
+            "type": "virtualbox-iso",
+            "vboxmanage": [
+                [
+                    "modifyvm",
+                    "{{.Name}}",
+                    "--memory",
+                    "1048"
+                ],
+                [
+                    "modifyvm",
+                    "{{.Name}}",
+                    "--cpus",
+                    "1"
+                ]
+            ],
+            "virtualbox_version_file": ".vbox_version"
+        },
+        {
+            "type": "vmware-iso",
+            "boot_command": [
+                "<esc><esc><enter><wait>",
+                "/install/vmlinuz noapic preseed/url=http://{{ .HTTPIP }}:{{ .HTTPPort }}/preseed.cfg ",
+                "debian-installer=en_US auto locale=en_US kbd-chooser/method=us ",
+                "hostname={{ .Name }} ",
+                "fb=false debconf/frontend=noninteractive ",
+                "keyboard-configuration/modelcode=SKIP keyboard-configuration/layout=USA keyboard-configuration/variant=USA console-setup/ask_detect=false ",
+                "initrd=/install/initrd.gz -- <enter>"
+            ],
+            "boot_wait": "10s",
+            "disk_size": 20480,
+            "guest_os_type": "Ubuntu-64",
+            "headless": true,
+            "http_directory": "http",
+            "iso_checksum": "3bfa6eac84d527380d0cc52db9092cde127f161e",
+            "iso_checksum_type": "sha1",
+            "iso_url": "http://releases.ubuntu.com/14.04/ubuntu-14.04.2-server-amd64.iso",
+            "skip_compaction": true,
+            "ssh_username": "vagrant",
+            "ssh_password": "vagrant",
+            "ssh_port": 22,
+            "ssh_wait_timeout": "10000s",
+            "shutdown_command": "echo '/sbin/halt -h -p' > shutdown.sh; echo 'vagrant'|sudo -S bash 'shutdown.sh'",
+            "tools_upload_flavor": "linux"
+        }
+    ],
+
+    "provisioners": [
+        {
+            "only": ["virtualbox-iso", "vmware-iso"],
+            "override": {
+                "virtualbox-iso": {
+                    "execute_command": "echo 'vagrant' | sudo -S sh '{{ .Path }}'"
+                },
+                "vmware-iso": {
+                    "execute_command": "echo 'vagrant'|sudo -S bash '{{.Path}}'"
+                }
+            },
+            "scripts": [
+                "scripts/base.sh",
+                "scripts/virtualbox.sh",
+                "scripts/vmware.sh",
+                "scripts/dep.sh"
+            ],
+            "type": "shell"
+        },
+        {
+            "type": "file",
+            "source": "include/",
+            "destination": "/tmp/"
+        },
+        {
+            "type": "shell",
+            "inline": [
+                "# Wait before running the update. If we're too quick, we'll only get a partial package list",
+                "sleep 10",
+                "sudo apt-get update",
+                "sudo apt-get -y install python-setuptools ntp wget curl default-jre libsvn1 unzip",
+                "sudo easy_install pip",
+
+                "# Set a TTL for JVM DNS cache",
+                "sudo sh -c \"grep '^networkaddress.cache.ttl=' /etc/java-7-openjdk/security/java.security || echo 'networkaddress.cache.ttl=60' >> /etc/java-7-openjdk/security/java.security\"",
+
+                "# Put system configs into place",
+                "sudo mv /tmp/limits.conf /etc/security/limits.conf",
+                "sudo mv /tmp/sysctld.network.conf /etc/sysctl.d/60-network.conf",
+                "sudo mv /tmp/pamd.common-session /etc/pam.d/common-session",
+                "sudo mv /tmp/pamd.common-session-noninteractive /etc/pam.d/common-session-noninteractive",
+
+                "# Docker (use Docker repo so we can get recent versions)",
+                "sudo apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 36A1D7869245C8950F966E92D8576A8BA88D21E9",
+                "sudo sh -c 'echo deb http://get.docker.com/ubuntu docker main > /etc/apt/sources.list.d/docker.list'",
+                "sudo apt-get update",
+                "sudo apt-get -y install lxc-docker-{{user `docker_version`}}",
+                "sudo mv /tmp/docker.logrotate /etc/logrotate.d/docker",
+
+                "# Install logstash",
+                "sudo curl -o /tmp/logstash.tar.gz https://download.elasticsearch.org/logstash/logstash/logstash-1.4.2.tar.gz",
+                "sudo mkdir /opt/logstash",
+                "sudo tar zxf /tmp/logstash.tar.gz -C /opt/logstash --strip=1",
+                "sudo rm -f /tmp/logstash.tgz",
+                "sudo /opt/logstash/bin/plugin install contrib",
+
+                "# Install Mesos, Marathon, and Chronos from Mesosphere apt repos",
+                "sudo apt-key adv --keyserver keyserver.ubuntu.com --recv E56151BF",
+                "sudo sh -c 'echo deb http://repos.mesosphere.io/ubuntu trusty main > /etc/apt/sources.list.d/mesosphere.list'",
+                "sudo apt-get -y update",
+                "sudo apt-get -y install mesos={{user `mesos_version`}}* marathon={{user `marathon_version`}}* chronos={{user `chronos_version`}}*",
+                "sudo apt-mark hold mesos marathon chronos",
+
+                "# Disable autostarting upstart tasks",
+                "echo manual | sudo tee /etc/init/mesos-master.override",
+                "echo manual | sudo tee /etc/init/mesos-slave.override",
+                "echo manual | sudo tee /etc/init/marathon.override",
+                "echo manual | sudo tee /etc/init/chronos.override",
+                "echo manual | sudo tee /etc/init/zookeeper.override",
+
+                "# Clear Apt-Cache",
+                "sudo apt-get clean",
+                "sudo rm -rf /var/lib/apt/lists/* /var/tmp/*"
+            ]
+        },
+        {
+            "type": "shell",
+            "only": ["virtualbox-iso", "vmware-iso"],
+            "inline": [
+                "#Set a nicer hostname",
+                "echo mesos | sudo tee /etc/hostname",
+                "sudo sed -i 's/packer-.*$/mesos/' /etc/hosts",
+
+                "#Install Vagrant ssh keys",
+                "sudo mkdir -p /home/vagrant/.ssh",
+                "sudo wget -O /home/vagrant/.ssh/authorized_keys https://raw.githubusercontent.com/mitchellh/vagrant/master/keys/vagrant.pub",
+                "sudo chmod 0600 /home/vagrant/.ssh/authorized_keys",
+                "sudo chown vagrant:vagrant -R /home/vagrant/.ssh/"
+            ]
+        },
+        {
+            "type": "shell",
+            "only": ["amazon-ebs"],
+            "inline": [
+                "# Install CloudFormation bootstrap tools",
+                "sudo wget -O /root/aws-cfn-bootstrap-latest.tar.gz {{user `cfn_tools_url`}}",
+                "sudo mkdir -p /root/aws-cfn-bootstrap-latest",
+                "sudo tar xvfz /root/aws-cfn-bootstrap-latest.tar.gz --strip-components=1 -C /root/aws-cfn-bootstrap-latest",
+                "sudo easy_install /root/aws-cfn-bootstrap-latest/",
+                "sudo rm -rf /root/aws-cfn-bootstrap-latest /root/aws-cfn-bootstrap-latest.tar.gz"
+            ]
+        },
+        {
+            "only": ["virtualbox-iso", "vmware-iso"],
+            "override": {
+                "virtualbox-iso": {
+                    "execute_command": "echo 'vagrant' | sudo -S sh '{{ .Path }}'"
+                },
+                "vmware-iso": {
+                    "execute_command": "echo 'vagrant'|sudo -S bash '{{.Path}}'"
+                }
+            },
+            "scripts": [
+                "scripts/cleanup.sh",
+                "scripts/zerodisk.sh"
+            ],
+            "type": "shell"
+        }
+    ],
+
+    "post-processors": [
+        [{
+            "type": "vagrant",
+            "keep_input_artifact": false
+        },
+         {
+             "type": "atlas",
+             "only": ["amazon-ebs"],
+             "artifact": "{{user `atlas_username`}}/{{user `atlas_name`}}",
+             "artifact_type": "vagrant.box",
+             "metadata": {
+                 "provider": "aws",
+                 "version": "0.0.3"
+             }
+         },
+         {
+             "type": "atlas",
+             "only": ["virtualbox-iso"],
+             "artifact": "{{user `atlas_username`}}/{{user `atlas_name`}}",
+             "artifact_type": "vagrant.box",
+             "metadata": {
+                 "provider": "virtualbox",
+                 "version": "0.0.3"
+             }
+         },
+         {
+             "type": "atlas",
+             "only": ["vmware-iso"],
+             "artifact": "{{user `atlas_username`}}/{{user `atlas_name`}}",
+             "artifact_type": "vagrant.box",
+             "metadata": {
+                 "provider": "vmware",
+                 "version": "0.0.3"
+             }
+         }]
+    ]
+}

@@ -1,7 +1,7 @@
 {
     "variables": {
-        "docker_version": "1.6.0",
-        "mesos_version": "0.22.1",
+        "docker_version": "1.8.1",
+        "mesos_version": "0.23.0",
         "marathon_version": "0.8.1",
         "chronos_version": "2.3.3",
         "cfn_tools_url": "https://s3.amazonaws.com/cloudformation-examples/aws-cfn-bootstrap-latest.tar.gz",
@@ -140,10 +140,10 @@
                 "sudo mv /tmp/pamd.common-session-noninteractive /etc/pam.d/common-session-noninteractive",
 
                 "# Docker (use Docker repo so we can get recent versions)",
-                "sudo apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 36A1D7869245C8950F966E92D8576A8BA88D21E9",
-                "sudo sh -c 'echo deb http://get.docker.com/ubuntu docker main > /etc/apt/sources.list.d/docker.list'",
+                "sudo apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D",
+                "sudo sh -c 'echo deb https://apt.dockerproject.org/repo ubuntu-trusty main > /etc/apt/sources.list.d/docker.list'",
                 "sudo apt-get update",
-                "sudo apt-get -y install lxc-docker-{{user `docker_version`}}",
+                "sudo apt-get -y install docker-engine={{user `docker_version`}}*",
                 "sudo mv /tmp/docker.logrotate /etc/logrotate.d/docker",
 
                 "# Install logstash",
@@ -229,7 +229,7 @@
              "artifact_type": "vagrant.box",
              "metadata": {
                  "provider": "aws",
-                 "version": "0.0.3"
+                 "version": "0.1.0"
              }
          },
          {
@@ -239,7 +239,7 @@
              "artifact_type": "vagrant.box",
              "metadata": {
                  "provider": "virtualbox",
-                 "version": "0.0.3"
+                 "version": "0.1.0"
              }
          },
          {
@@ -249,7 +249,7 @@
              "artifact_type": "vagrant.box",
              "metadata": {
                  "provider": "vmware",
-                 "version": "0.0.3"
+                 "version": "0.1.0"
              }
          }]
     ]
